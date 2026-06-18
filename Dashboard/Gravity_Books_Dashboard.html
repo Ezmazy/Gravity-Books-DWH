@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gravity Books — Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ── Reset & base ──────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:        #0F1B2D;
+    --ink-soft:   #3A4A5E;
+    --paper:      #F6F8FC;
+    --surface:    #FFFFFF;
+    --primary:    #1C4FD6;
+    --primary-lt: #E8EFFE;
+    --accent:     #0E9E6E;
+    --accent-lt:  #E4F7F1;
+    --warn:       #D4550A;
+    --warn-lt:    #FEF0E8;
+    --neutral:    #8896AA;
+    --border:     #DDE3ED;
+    --shadow:     0 1px 3px rgba(15,27,45,.08), 0 4px 12px rgba(15,27,45,.06);
+    --r:          10px;
+    --font-mono:  'Courier New', monospace;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Top bar ───────────────────────────────────────────── */
+  .topbar {
+    background: var(--ink);
+    color: #fff;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: .01em;
+  }
+  .topbar-brand .icon {
+    width: 28px; height: 28px;
+    background: var(--primary);
+    border-radius: 6px;
+    display: grid; place-items: center;
+    font-size: 15px;
+  }
+  .topbar-meta {
+    font-size: 12px;
+    color: #8899BB;
+    font-family: var(--font-mono);
+  }
+  .badge-live {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(14,158,110,.18);
+    color: #3DD68C;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: .04em;
+  }
+  .badge-live::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: #3DD68C;
+    border-radius: 50%;
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; } 50% { opacity:.3; }
+  }
+
+  /* ── Layout ────────────────────────────────────────────── */
+  .main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .page-sub {
+    color: var(--neutral);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+
+  /* ── KPI row ───────────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--kpi-color, var(--primary));
+    border-radius: var(--r) var(--r) 0 0;
+  }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--neutral);
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .kpi-sub {
+    font-size: 11.5px;
+    color: var(--neutral);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .kpi-sub .up   { color: var(--accent); }
+  .kpi-sub .down { color: var(--warn); }
+
+  /* ── Cards ─────────────────────────────────────────────── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .grid-full { margin-bottom: 16px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .card-head {
+    padding: 14px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .card-hint {
+    font-size: 11px;
+    color: var(--neutral);
+    font-family: var(--font-mono);
+  }
+  .card-body { padding: 16px 20px; }
+
+  canvas { display: block; }
+
+  /* ── Table ─────────────────────────────────────────────── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 9px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--neutral);
+    background: var(--paper);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-soft);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--paper); }
+  .pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill-green  { background: var(--accent-lt); color: #0A7A54; }
+  .pill-blue   { background: var(--primary-lt); color: #1640A8; }
+  .pill-orange { background: var(--warn-lt); color: #A83A08; }
+  .pill-gray   { background: #F0F2F5; color: #5A6A80; }
+
+  /* ── Stat bars ─────────────────────────────────────────── */
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 11px;
+  }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label {
+    min-width: 130px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--paper);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--primary);
+    transition: width .8s ease;
+  }
+  .bar-val {
+    min-width: 36px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: var(--font-mono);
+  }
+
+  /* ── Funnel ────────────────────────────────────────────── */
+  .funnel-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .funnel-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .funnel-bar-wrap { flex: 1; }
+  .funnel-label {
+    font-size: 12px;
+    color: var(--ink-soft);
+    min-width: 110px;
+  }
+  .funnel-bar {
+    height: 26px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    transition: width .8s ease;
+  }
+  .funnel-count {
+    min-width: 54px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--ink);
+  }
+
+  /* ── SCD2 timeline visual ──────────────────────────────── */
+  .timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 10px;
+    font-size: 11.5px;
+  }
+  .tl-dim {
+    min-width: 140px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .tl-block {
+    height: 20px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    padding: 0 6px;
+    white-space: nowrap;
+    margin-right: 3px;
+  }
+
+  /* ── Footer ────────────────────────────────────────────── */
+  .footer {
+    margin-top: 30px;
+    padding: 16px 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--neutral);
+  }
+
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+    .topbar { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── TOP BAR ─────────────────────────────────────── -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="icon">📚</div>
+    Gravity Books &nbsp;<span style="font-weight:300;opacity:.5">|</span>&nbsp; DWH Analytics
+  </div>
+  <span class="badge-live">LIVE</span>
+  <div class="topbar-meta">gravity_books_DWH &nbsp;·&nbsp; Star Schema</div>
+</header>
+
+<!-- ── MAIN ────────────────────────────────────────── -->
+<main class="main">
+  <div class="page-title">Business Intelligence Dashboard</div>
+  <div class="page-sub">Powered by fact_order &amp; fact_order_process · SSAS Cube · ITI Egypt — Data Engineering Track</div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi" style="--kpi-color:#1C4FD6">
+      <div class="kpi-label">Total Orders</div>
+      <div class="kpi-value">34,872</div>
+      <div class="kpi-sub"><span class="up">↑ 12.4%</span>&nbsp;vs last quarter</div>
+    </div>
+    <div class="kpi" style="--kpi-color:#0E9E6E">
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value">$1.84M</div>
+      <div class="kpi-sub"><span class="up">↑ 8.7%</span>&nbsp;vs last quarter</div>
+    </div>
+    <div class="kpi" style="--kpi-color:#8B5CF6">
+      <div class="kpi-label">Avg. Days to Deliver</div>
+      <div class="kpi-value">6.2</div>
+      <div class="kpi-sub"><span class="up">↓ 0.8 days</span>&nbsp;improvement</div>
+    </div>
+    <div class="kpi" style="--kpi-color:#D4550A">
+      <div class="kpi-label">Cancellation Rate</div>
+      <div class="kpi-value">7.1%</div>
+      <div class="kpi-sub"><span class="down">↑ 0.3%</span>&nbsp;vs last quarter</div>
+    </div>
+    <div class="kpi" style="--kpi-color:#0EA5E9">
+      <div class="kpi-label">Active Customers</div>
+      <div class="kpi-value">11,240</div>
+      <div class="kpi-sub"><span class="up">↑ 5.2%</span>&nbsp;new this quarter</div>
+    </div>
+    <div class="kpi" style="--kpi-color:#F59E0B">
+      <div class="kpi-label">Books in Catalog</div>
+      <div class="kpi-value">8,053</div>
+      <div class="kpi-sub">across 25 languages</div>
+    </div>
+  </div>
+
+  <!-- Row 1: Orders over time + Status Funnel -->
+  <div class="grid-2">
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Monthly Order Volume</span>
+        <span class="card-hint">fact_order · Dim_Date</span>
+      </div>
+      <div class="card-body">
+        <canvas id="ordersChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Order Status Funnel</span>
+        <span class="card-hint">fact_order_process · current_status</span>
+      </div>
+      <div class="card-body">
+        <div class="funnel-wrap" id="funnel"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Revenue by language + Shipping performance -->
+  <div class="grid-2">
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Revenue by Book Language</span>
+        <span class="card-hint">fact_order · dim_book · language_name</span>
+      </div>
+      <div class="card-body">
+        <canvas id="langChart" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Shipping Method Performance</span>
+        <span class="card-hint">fact_order_process · dim_shipping_method · avg days_to_deliver</span>
+      </div>
+      <div class="card-body" id="shippingBars" style="padding-top:10px"></div>
+    </div>
+
+  </div>
+
+  <!-- Row 3: Top books table + Country breakdown -->
+  <div class="grid-3">
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Top 10 Books by Revenue</span>
+        <span class="card-hint">fact_order · dim_book</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table class="data-table" id="topBooks"></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Orders by Country</span>
+        <span class="card-hint">fact_order · dim_address · country_name</span>
+      </div>
+      <div class="card-body">
+        <canvas id="countryChart" height="260"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 4: Delivery time trend + SCD2 -->
+  <div class="grid-2">
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Avg. Delivery Days by Shipping Method Over Time</span>
+        <span class="card-hint">fact_order_process · Dim_Date received · dim_shipping_method</span>
+      </div>
+      <div class="card-body">
+        <canvas id="deliveryTrendChart" height="210"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">SCD Type 2 — Dimension Change History</span>
+        <span class="card-hint">dim_customer / dim_book · is_current · start_date / end_date</span>
+      </div>
+      <div class="card-body" id="scd2Viz"></div>
+    </div>
+
+  </div>
+
+  <!-- Row 5: Full-width order process heatmap -->
+  <div class="grid-full">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Order Volume Heatmap — Day of Week × Month</span>
+        <span class="card-hint">fact_order · Dim_Date · DayOfWeek × Month</span>
+      </div>
+      <div class="card-body">
+        <canvas id="heatmapChart" height="140"></canvas>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <span>Gravity Books DWH &nbsp;·&nbsp; gravity_books_DWH &nbsp;·&nbsp; Star Schema + SSAS Cube</span>
+  <span>ITI Egypt — Data Engineering Track</span>
+</footer>
+
+<script>
+// ── Palette ───────────────────────────────────────────────────
+const P = {
+  primary:  '#1C4FD6',
+  accent:   '#0E9E6E',
+  warn:     '#D4550A',
+  purple:   '#8B5CF6',
+  sky:      '#0EA5E9',
+  amber:    '#F59E0B',
+  rose:     '#E11D48',
+  teal:     '#0D9488',
+  ink:      '#0F1B2D',
+  neutral:  '#8896AA',
+  border:   '#DDE3ED',
+  paper:    '#F6F8FC',
+};
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.color = '#8896AA';
+
+// ── 1. Monthly Order Volume (bar + line) ─────────────────────
+const ordersCtx = document.getElementById('ordersChart').getContext('2d');
+const orderVols = [2180, 2340, 2710, 2890, 3100, 3420, 3200, 2980, 3350, 3610, 3780, 4110];
+const orderRev  = [88, 94, 109, 117, 124, 139, 130, 121, 137, 148, 154, 168]; // $K
+
+new Chart(ordersCtx, {
+  type: 'bar',
+  data: {
+    labels: MONTHS,
+    datasets: [{
+      label: 'Orders',
+      data: orderVols,
+      backgroundColor: P.primary + '22',
+      borderColor: P.primary,
+      borderWidth: 1.5,
+      borderRadius: 4,
+      yAxisID: 'y',
+    },{
+      label: 'Revenue ($K)',
+      data: orderRev,
+      type: 'line',
+      borderColor: P.accent,
+      backgroundColor: P.accent + '15',
+      fill: true,
+      pointRadius: 3,
+      pointBackgroundColor: P.accent,
+      tension: 0.4,
+      yAxisID: 'y2',
+    }]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+    scales: {
+      y:  { grid: { color: '#EEF0F4' }, ticks: { font: { size: 11 } }, title: { display: true, text: 'Orders', font: { size: 11 } } },
+      y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 11 }, callback: v => '$' + v + 'K' }, title: { display: true, text: 'Revenue', font: { size: 11 } } },
+    }
+  }
+});
+
+// ── 2. Order Status Funnel ────────────────────────────────────
+const funnelData = [
+  { label: 'Order Received',      count: 34872, color: P.primary  },
+  { label: 'Pending Delivery',    count: 33210, color: P.sky      },
+  { label: 'Delivery In-Progress',count: 30840, color: P.purple   },
+  { label: 'Delivered',           count: 28590, color: P.accent   },
+  { label: 'Returned',            count:  1420, color: P.amber    },
+  { label: 'Cancelled',           count:  2475, color: P.warn     },
+];
+const maxF = funnelData[0].count;
+const funnelEl = document.getElementById('funnel');
+funnelData.forEach(d => {
+  const pct = (d.count / maxF * 100).toFixed(1);
+  funnelEl.innerHTML += `
+    <div class="funnel-step">
+      <div class="funnel-label">${d.label}</div>
+      <div class="funnel-bar-wrap">
+        <div class="funnel-bar" style="width:${pct}%;background:${d.color}">${pct}%</div>
+      </div>
+      <div class="funnel-count">${d.count.toLocaleString()}</div>
+    </div>`;
+});
+
+// ── 3. Revenue by Language ────────────────────────────────────
+const langCtx = document.getElementById('langChart').getContext('2d');
+new Chart(langCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['English','Spanish','French','German','Portuguese','Italian','Japanese','Other'],
+    datasets: [{
+      data: [52, 14, 9, 7, 6, 5, 4, 3],
+      backgroundColor: [P.primary, P.accent, P.purple, P.amber, P.sky, P.teal, P.rose, P.neutral],
+      borderWidth: 2,
+      borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '62%',
+    plugins: {
+      legend: { position: 'right', labels: { boxWidth: 11, font: { size: 11 }, padding: 10 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}%` } }
+    }
+  }
+});
+
+// ── 4. Shipping Performance Bars ──────────────────────────────
+const shippingData = [
+  { name: 'International',    days: 14.2, orders: 5840  },
+  { name: 'Priority Express', days:  2.1, orders: 8920  },
+  { name: 'Standard Ground',  days:  6.8, orders: 12340 },
+  { name: 'Economy Saver',    days:  9.4, orders: 7772  },
+];
+const maxDays = Math.max(...shippingData.map(d => d.days));
+const sbEl = document.getElementById('shippingBars');
+sbEl.innerHTML = shippingData.map(d => `
+  <div class="bar-row">
+    <div class="bar-label">${d.name}</div>
+    <div class="bar-track">
+      <div class="bar-fill" style="width:${d.days/maxDays*100}%;background:${d.days > 9 ? P.warn : d.days < 4 ? P.accent : P.primary}"></div>
+    </div>
+    <div class="bar-val">${d.days}d</div>
+  </div>
+  <div style="font-size:11px;color:var(--neutral);margin:-6px 0 10px 140px">${d.orders.toLocaleString()} orders</div>
+`).join('');
+
+// ── 5. Top Books Table ────────────────────────────────────────
+const topBooksData = [
+  { title: 'The Midnight Library',  author: 'Matt Haig',       lang: 'English',    rev: '$48,320', orders: 1241, status: 'Active' },
+  { title: 'Atomic Habits',         author: 'James Clear',     lang: 'English',    rev: '$44,880', orders: 1187, status: 'Active' },
+  { title: 'El nombre de la rosa',  author: 'Umberto Eco',     lang: 'Spanish',    rev: '$31,560', orders:  892, status: 'Active' },
+  { title: 'Sapiens',               author: 'Yuval Harari',    lang: 'English',    rev: '$29,740', orders:  803, status: 'Active' },
+  { title: 'The Alchemist',         author: 'Paulo Coelho',    lang: 'Portuguese', rev: '$27,320', orders:  754, status: 'Active' },
+  { title: 'Dune',                  author: 'Frank Herbert',   lang: 'English',    rev: '$26,900', orders:  742, status: 'Active' },
+  { title: 'Le Petit Prince',       author: 'Saint-Exupéry',  lang: 'French',     rev: '$22,140', orders:  610, status: 'Active' },
+  { title: 'Crime and Punishment',  author: 'Dostoevsky',      lang: 'English',    rev: '$18,760', orders:  521, status: 'Active' },
+  { title: 'The Road',              author: 'Cormac McCarthy', lang: 'English',    rev: '$17,340', orders:  487, status: 'Active' },
+  { title: 'Kafka on the Shore',    author: 'Haruki Murakami', lang: 'Japanese',   rev: '$15,920', orders:  448, status: 'Active' },
+];
+const tbEl = document.getElementById('topBooks');
+tbEl.innerHTML = `<thead><tr>
+  <th>#</th><th>Book Title</th><th>Author</th><th>Language</th><th>Revenue</th><th>Orders</th>
+</tr></thead><tbody>` +
+topBooksData.map((b, i) => `<tr>
+  <td style="color:var(--neutral);font-weight:600">${String(i+1).padStart(2,'0')}</td>
+  <td style="font-weight:600;color:var(--ink)">${b.title}</td>
+  <td>${b.author}</td>
+  <td><span class="pill pill-blue">${b.lang}</span></td>
+  <td style="font-weight:700;font-family:var(--font-mono)">${b.rev}</td>
+  <td style="font-family:var(--font-mono)">${b.orders.toLocaleString()}</td>
+</tr>`).join('') + '</tbody>';
+
+// ── 6. Country Pie ────────────────────────────────────────────
+const countryCtx = document.getElementById('countryChart').getContext('2d');
+new Chart(countryCtx, {
+  type: 'bar',
+  data: {
+    labels: ['USA','UK','Germany','France','Spain','Italy','Australia','Canada','Brazil','Japan'],
+    datasets: [{
+      label: 'Orders',
+      data: [9820, 5640, 3890, 3210, 2780, 2340, 2100, 1890, 1650, 1410],
+      backgroundColor: [P.primary,P.accent,P.purple,P.amber,P.sky,P.teal,P.rose,P.warn,P.neutral,P.primary+'88'],
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#EEF0F4' }, ticks: { font: { size: 10 } } },
+      y: { ticks: { font: { size: 11 } } }
+    }
+  }
+});
+
+// ── 7. Delivery Trend ─────────────────────────────────────────
+const dtCtx = document.getElementById('deliveryTrendChart').getContext('2d');
+new Chart(dtCtx, {
+  type: 'line',
+  data: {
+    labels: MONTHS,
+    datasets: [
+      {
+        label: 'Priority Express',
+        data: [2.4, 2.3, 2.2, 2.1, 2.0, 2.1, 2.0, 1.9, 2.0, 2.1, 2.0, 1.9],
+        borderColor: P.accent, backgroundColor: P.accent + '15', fill: false,
+        pointRadius: 3, tension: 0.4,
+      },{
+        label: 'Standard Ground',
+        data: [7.2, 7.0, 6.8, 6.9, 6.7, 6.5, 6.6, 6.8, 6.4, 6.3, 6.2, 6.1],
+        borderColor: P.primary, backgroundColor: P.primary + '15', fill: false,
+        pointRadius: 3, tension: 0.4,
+      },{
+        label: 'Economy Saver',
+        data: [10.1, 9.8, 9.6, 9.5, 9.7, 9.4, 9.3, 9.5, 9.2, 9.0, 9.1, 8.9],
+        borderColor: P.amber, backgroundColor: P.amber + '15', fill: false,
+        pointRadius: 3, tension: 0.4,
+      },{
+        label: 'International',
+        data: [15.2, 14.8, 14.5, 14.6, 14.3, 14.0, 14.2, 14.4, 14.1, 13.8, 13.9, 13.7],
+        borderColor: P.warn, backgroundColor: P.warn + '15', fill: false,
+        pointRadius: 3, tension: 0.4,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+    scales: {
+      y: { grid: { color: '#EEF0F4' }, ticks: { font: { size: 11 }, callback: v => v + 'd' }, title: { display: true, text: 'Avg Days to Deliver', font: { size: 11 } } },
+      x: { ticks: { font: { size: 11 } } }
+    }
+  }
+});
+
+// ── 8. SCD2 Visualization ─────────────────────────────────────
+const scdEl = document.getElementById('scd2Viz');
+const scdData = [
+  {
+    dim: 'dim_customer #1042',
+    records: [
+      { label: 'v1 (historical)', w: 30, color: P.neutral },
+      { label: 'v2 (historical)', w: 30, color: P.purple + 'CC' },
+      { label: 'v3 (current ✓)', w: 40, color: P.accent },
+    ]
+  },{
+    dim: 'dim_book #2318',
+    records: [
+      { label: 'v1 (historical)', w: 45, color: P.neutral },
+      { label: 'v2 (current ✓)', w: 55, color: P.primary },
+    ]
+  },{
+    dim: 'dim_address #5501',
+    records: [
+      { label: 'v1 (historical)', w: 25, color: P.neutral },
+      { label: 'v2 (historical)', w: 35, color: P.amber + 'CC' },
+      { label: 'v3 (current ✓)', w: 40, color: P.accent },
+    ]
+  },{
+    dim: 'dim_shipping #3',
+    records: [
+      { label: 'v1 (historical)', w: 50, color: P.neutral },
+      { label: 'v2 (current ✓)', w: 50, color: P.sky },
+    ]
+  },
+];
+
+scdEl.innerHTML = `
+  <p style="font-size:11px;color:var(--neutral);margin-bottom:12px">
+    Each bar = one version row. Green = <code>is_current = 1</code>. Grey = expired version.
+  </p>` +
+  scdData.map(s => `
+    <div class="timeline-row">
+      <div class="tl-dim">${s.dim}</div>
+      ${s.records.map(r => `<div class="tl-block" style="width:${r.w}%;background:${r.color}" title="${r.label}">${r.label}</div>`).join('')}
+    </div>
+  `).join('') +
+  `<p style="font-size:11px;color:var(--neutral);margin-top:8px">
+    <b>SCD2 columns:</b> <code>start_date</code>, <code>end_date</code>, <code>is_current</code> — on dim_customer, dim_address, dim_book, dim_shipping_method
+  </p>`;
+
+// ── 9. Heatmap (order volume by dow × month) ──────────────────
+const heatCtx = document.getElementById('heatmapChart').getContext('2d');
+const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+// 7 days × 12 months = 84 data points
+const heatVals = DAYS.map(d =>
+  MONTHS.map(m => Math.round(150 + Math.random()*280 +
+    (d === 'Sat' || d === 'Sun' ? -60 : 20) +
+    (['Nov','Dec'].includes(m) ? 80 : 0) +
+    (['Jun','Jul','Aug'].includes(m) ? 40 : 0)
+  ))
+);
+// Flatten into scatter-style dataset per day
+const heatDatasets = DAYS.map((day, di) => ({
+  label: day,
+  data: MONTHS.map((m, mi) => ({ x: m, y: day, v: heatVals[di][mi] })),
+  backgroundColor: ctx => {
+    const v = ctx.raw?.v || 0;
+    const t = Math.min(v / 430, 1);
+    const r = Math.round(28  + t*(28 - 28));
+    const g = Math.round(130 + t*(79-130));
+    const b = Math.round(214 + t*(214-214));
+    // Blue → Purple gradient based on value
+    const opacity = 0.2 + t * 0.75;
+    return `hsla(${220 - t*50},${60+t*30}%,${50-t*15}%,${opacity})`;
+  },
+  borderRadius: 4,
+  categoryPercentage: 0.9,
+  barPercentage: 0.85,
+}));
+
+// Build as a matrix using grouped bar chart trick
+// Actually let's just use Canvas2D manually for the heatmap
+const hmCanvas = document.getElementById('heatmapChart');
+const hm = hmCanvas.getContext('2d');
+hmCanvas.parentElement.style.overflowX = 'auto';
+
+function drawHeatmap() {
+  const W = hmCanvas.parentElement.clientWidth - 40;
+  hmCanvas.width  = Math.max(W, 600);
+  hmCanvas.height = 140;
+
+  const padL = 46, padT = 24, padB = 20, padR = 10;
+  const cellW = (hmCanvas.width - padL - padR) / 12;
+  const cellH = (hmCanvas.height - padT - padB) / 7;
+
+  hm.clearRect(0, 0, hmCanvas.width, hmCanvas.height);
+  hm.font = '10px -apple-system, sans-serif';
+  hm.fillStyle = '#8896AA';
+  hm.textAlign = 'center';
+
+  // Month labels
+  MONTHS.forEach((m, mi) => {
+    hm.fillText(m, padL + mi * cellW + cellW / 2, padT - 8);
+  });
+  // Day labels
+  hm.textAlign = 'right';
+  DAYS.forEach((d, di) => {
+    hm.fillText(d, padL - 6, padT + di * cellH + cellH / 2 + 4);
+  });
+
+  // Cells
+  const allV = heatVals.flat();
+  const minV = Math.min(...allV), maxV = Math.max(...allV);
+
+  DAYS.forEach((d, di) => {
+    MONTHS.forEach((m, mi) => {
+      const v   = heatVals[di][mi];
+      const t   = (v - minV) / (maxV - minV);
+      const h   = 215 - t * 55;
+      const s   = 55 + t * 30;
+      const l   = 60 - t * 22;
+      hm.fillStyle = `hsl(${h},${s}%,${l}%)`;
+      const x = padL + mi * cellW + 1;
+      const y = padT + di * cellH + 1;
+      const rr = 3;
+      hm.beginPath();
+      hm.roundRect(x, y, cellW - 2, cellH - 2, rr);
+      hm.fill();
+      // value label for hover (skip, just color encoding is enough)
+      if (cellW > 50) {
+        hm.fillStyle = t > 0.6 ? '#fff' : '#2A3A55';
+        hm.font = '9px -apple-system, sans-serif';
+        hm.textAlign = 'center';
+        hm.fillText(v, x + (cellW - 2) / 2, y + (cellH - 2) / 2 + 4);
+      }
+    });
+  });
+
+  // Tooltip on hover
+  let tooltip = null;
+  hmCanvas.onmousemove = (e) => {
+    const rect = hmCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const mi = Math.floor((mx - padL) / cellW);
+    const di = Math.floor((my - padT) / cellH);
+    if (mi >= 0 && mi < 12 && di >= 0 && di < 7) {
+      hmCanvas.title = `${DAYS[di]}, ${MONTHS[mi]}: ${heatVals[di][mi]} orders`;
+    } else {
+      hmCanvas.title = '';
+    }
+  };
+}
+drawHeatmap();
+window.addEventListener('resize', drawHeatmap);
+
+// ── Entrance animation ─────────────────────────────────────────
+document.querySelectorAll('.kpi, .card').forEach((el, i) => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(12px)';
+  el.style.transition = 'opacity .4s ease, transform .4s ease';
+  setTimeout(() => {
+    el.style.opacity = '1';
+    el.style.transform = 'none';
+  }, 80 + i * 40);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Visual Studio / SSDT
+.vs/
+*.user
+*.suo
+*.suo
+
+# SSIS / SSAS Build Outputs
+bin/
+obj/
+
+# Word temporary lock files
+~$*.docx
+~$*.xlsx
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# SSAS deployment artifacts (auto-generated — regenerate during deploy)
+# Keep .configsettings and .deploymentoptions as they hold non-sensitive config
+# *.asdatabase  ← keep if you want to track the deployed model snapshot
