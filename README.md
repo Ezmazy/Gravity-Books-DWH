@@ -293,7 +293,7 @@ The single `Dim_Date` table is reused 5 times in the SSAS cube as role-playing d
 
 ## 👤 Author
 
-**Ezmazy**  
+**Abdelrahman ElEzmazy**  
 Data Engineering Trainee — ITI Egypt  
 Information Technology Institute · Data Engineering Track
 
